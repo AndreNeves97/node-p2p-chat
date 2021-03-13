@@ -1,0 +1,17 @@
+{
+  "name": "node-p2p-chat",
+  "version": "1.0.0",
+  "description": "## Execution",
+  "main": "index.js",
+  "dependencies": {},
+  "devDependencies": {
+    "nodemon": "^2.0.7"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "start:watch": "nodemon src/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
