@@ -23,24 +23,48 @@ module.exports = class Peer {
     const port = splittedAddress.splice(-1, 1)[0];
     const host = splittedAddress.join(":");
 
-    this.addKnownHost(host, port);
+    const hostObj = this.getHostObj(host, port);
+    this.addKnownHost(hostObj);
 
     const socket = net.createConnection({ port, host }, () => {
       console.log("Connected to", address);
+      console.log("\n\n");
       this.addConnection(socket);
       this.listenClientData(socket);
-      this.sendWelcomeMessage(this.port);
+      this.sendWelcomeMessage(socket, this.port);
     });
   }
 
-  addKnownHost(host, port) {
-    const hostObj = { host, port };
-    console.log("\n[Added known host]", hostObj);
+  getHostObj(host, port) {
+    return { host, port };
+  }
+
+  addKnownHost(hostObj) {
+    console.log("\n[Added known host ", hostObj);
     this.knownHosts.push(hostObj);
+  }
+
+  connectToReceivedKnownHosts(knownHosts) {
+    knownHosts.forEach((hostObj) => this.connectToNewKnowHost(hostObj));
+  }
+
+  connectToNewKnowHost(hostObj) {
+    const alreadyKnownHostObj = this.knownHosts.find(
+      (knownHost) =>
+        hostObj.port === this.port ||
+        (knownHost.host === hostObj.host && knownHost.port && hostObj.port)
+    );
+
+    if (alreadyKnownHostObj) {
+      return;
+    }
+
+    this.connectTo(`${hostObj.host}:${hostObj.port}`);
   }
 
   handleClientConnection(socket) {
     this.addConnection(socket);
+    this.sendKnownHosts();
     this.listenClientData(socket);
   }
 
@@ -58,13 +82,22 @@ module.exports = class Peer {
       this.onData(socket, data);
 
       if (this.isWelcomeMessage(data)) {
-        this.addKnownHost(socket.remoteAddress, data.myPort);
+        const hostObj = this.getHostObj(socket.remoteAddress, data.myPort);
+        this.addKnownHost(hostObj);
+      }
+
+      if (this.isKnowHostsMessage(data)) {
+        this.connectToReceivedKnownHosts(data.knownHosts);
       }
     });
   }
 
   isWelcomeMessage(data) {
     return data.type === "welcome";
+  }
+
+  isKnowHostsMessage(data) {
+    return data.type === "knowHosts";
   }
 
   onData(socket, data) {
@@ -75,15 +108,32 @@ module.exports = class Peer {
     throw Error("onConnection handler not implemented");
   }
 
-  sendWelcomeMessage(myPort) {
-    this.sendMessage({
+  sendKnownHosts() {
+    console.log(
+      "\n\nsend known hosts",
+      this.knownHosts,
+      this.connections.length
+    );
+
+    this.broadcastMessage({
+      type: "knowHosts",
+      knownHosts: this.knownHosts,
+    });
+  }
+
+  sendWelcomeMessage(socket, myPort) {
+    this.sendMessage(socket, {
       type: "welcome",
       myPort,
     });
   }
 
-  sendMessage(jsonData) {
+  broadcastMessage(jsonData) {
+    this.connections.forEach((socket) => this.sendMessage(socket, jsonData));
+  }
+
+  sendMessage(socket, jsonData) {
     const data = JSON.stringify(jsonData);
-    this.connections.forEach((socket) => socket.write(data));
+    socket.write(data);
   }
 };

@@ -42,7 +42,7 @@ function onNewInputMessage(data) {
     return;
   }
 
-  peer.sendMessage({ type: "message", message: data, myPort: port });
+  peer.broadcastMessage({ type: "message", message: data, myPort: port });
 }
 
 function onConnection(socket) {}

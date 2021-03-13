@@ -4,12 +4,13 @@
 
 ```bash
 ## Run program
-PORT=3000 npm run start
+PORT=<PORT> npm run start [...hosts]
 
 ## Run and watch program files changes
-PORT=3000 npm run start:watch
+PORT=<PORT> npm run start:watch  [...hosts]
 
 
 # Args:
 # - PORT: Listening port
+# - hosts: Peers to connect into
 ```
