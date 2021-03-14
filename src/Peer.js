@@ -13,7 +13,7 @@ module.exports = class Peer {
     server.listen(port, () => console.log("Listening on port: ", port));
   }
 
-  connectTo(address) {
+  connectTo(address, sendKnownHosts = true, loopback = false) {
     const splittedAddress = address.split(":");
 
     if (splittedAddress.length < 2) {
@@ -23,15 +23,18 @@ module.exports = class Peer {
     const port = splittedAddress.splice(-1, 1)[0];
     const host = splittedAddress.join(":");
 
-    const hostObj = this.getHostObj(host, port);
-    this.addKnownHost(hostObj);
-
     const socket = net.createConnection({ port, host }, () => {
-      console.log("Connected to", address);
-      console.log("\n\n");
       this.addConnection(socket);
       this.listenClientData(socket);
-      this.sendWelcomeMessage(socket, this.port);
+
+      if (sendKnownHosts) {
+        this.sendKnownHosts();
+      }
+
+      this.sendWelcomeMessage(socket, this.port, loopback);
+
+      console.log("Connected to", address);
+      console.log("\n\n");
     });
   }
 
@@ -45,26 +48,34 @@ module.exports = class Peer {
   }
 
   connectToReceivedKnownHosts(knownHosts) {
-    knownHosts.forEach((hostObj) => this.connectToNewKnowHost(hostObj));
+    knownHosts.forEach((hostObj) => {
+      this.connectToNewKnownHost(hostObj);
+      console.log("\n\nconnect", hostObj, "\n\n");
+    });
   }
 
-  connectToNewKnowHost(hostObj) {
-    const alreadyKnownHostObj = this.knownHosts.find(
-      (knownHost) =>
-        hostObj.port === this.port ||
-        (knownHost.host === hostObj.host && knownHost.port && hostObj.port)
-    );
-
-    if (alreadyKnownHostObj) {
+  connectToNewKnownHost(hostObj) {
+    if (this.isKnownHost(hostObj)) {
       return;
     }
 
-    this.connectTo(`${hostObj.host}:${hostObj.port}`);
+    this.connectTo(`${hostObj.host}:${hostObj.port}`, false);
+  }
+
+  isKnownHost(hostObj) {
+    if (hostObj.port === this.port) {
+      return true;
+    }
+
+    const alreadyKnownHostObj = this.knownHosts.find(
+      (knownHost) =>
+        knownHost.host === hostObj.host && knownHost.port === hostObj.port
+    );
+
+    return alreadyKnownHostObj != null;
   }
 
   handleClientConnection(socket) {
-    this.addConnection(socket);
-    this.sendKnownHosts();
     this.listenClientData(socket);
   }
 
@@ -81,23 +92,34 @@ module.exports = class Peer {
 
       this.onData(socket, data);
 
-      if (this.isWelcomeMessage(data)) {
-        const hostObj = this.getHostObj(socket.remoteAddress, data.myPort);
-        this.addKnownHost(hostObj);
-      }
-
-      if (this.isKnowHostsMessage(data)) {
-        this.connectToReceivedKnownHosts(data.knownHosts);
-      }
+      this.handleWelcomeMessage(socket, data);
+      this.handleKnowHostsMessage(socket, data);
     });
   }
 
-  isWelcomeMessage(data) {
-    return data.type === "welcome";
+  handleWelcomeMessage(socket, data) {
+    if (data.type !== "welcome") {
+      return;
+    }
+
+    const { remoteAddress } = socket;
+    const { myPort } = data;
+
+    const hostObj = this.getHostObj(remoteAddress, myPort);
+
+    this.addKnownHost(hostObj);
+
+    if (!data.loopback) {
+      this.connectTo(`${remoteAddress}:${myPort}`, true, true);
+    }
   }
 
-  isKnowHostsMessage(data) {
-    return data.type === "knowHosts";
+  handleKnowHostsMessage(socket, data) {
+    if (data.type !== "knowHosts") {
+      return;
+    }
+
+    this.connectToReceivedKnownHosts(data.knownHosts);
   }
 
   onData(socket, data) {
@@ -110,7 +132,7 @@ module.exports = class Peer {
 
   sendKnownHosts() {
     console.log(
-      "\n\nsend known hosts",
+      "\n\n[send my known hosts]",
       this.knownHosts,
       this.connections.length
     );
@@ -121,10 +143,11 @@ module.exports = class Peer {
     });
   }
 
-  sendWelcomeMessage(socket, myPort) {
+  sendWelcomeMessage(socket, myPort, loopback = false) {
     this.sendMessage(socket, {
       type: "welcome",
       myPort,
+      loopback,
     });
   }
 

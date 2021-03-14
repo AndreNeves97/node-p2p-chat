@@ -37,6 +37,10 @@ function getHosts() {
 }
 
 function onNewInputMessage(data) {
+  if (data === "\n") {
+    return;
+  }
+
   if (!peer) {
     console.log("There's no active peer");
     return;
