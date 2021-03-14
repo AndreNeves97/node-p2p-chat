@@ -14,3 +14,15 @@ PORT=<PORT> npm run start:watch  [...hosts]
 # - PORT: Listening port
 # - hosts: Peers to connect into
 ```
+
+
+
+## Demonstration
+
+See P2P Chat working: https://www.youtube.com/watch?v=fsdCOiBw28w
+
+## Autores
+
+[Leonam Teixeira de Vasconcelos](https://github.com/leonamtv)
+
+[André Marcelino de Souza Neves](https://github.com/AndreNeves97)
