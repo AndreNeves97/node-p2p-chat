@@ -27,11 +27,7 @@ module.exports = class Peer {
       this.addConnection(socket);
       this.listenClientData(socket);
 
-      if (sendKnownHosts) {
-        this.sendKnownHosts();
-      }
-
-      this.sendWelcomeMessage(socket, this.port, loopback);
+      this.sendWelcomeMessage(socket, this.port, loopback, sendKnownHosts);
 
       console.log("Connected to", address);
       console.log("\n\n");
@@ -50,7 +46,6 @@ module.exports = class Peer {
   connectToReceivedKnownHosts(knownHosts) {
     knownHosts.forEach((hostObj) => {
       this.connectToNewKnownHost(hostObj);
-      console.log("\n\nconnect", hostObj, "\n\n");
     });
   }
 
@@ -93,7 +88,6 @@ module.exports = class Peer {
       this.onData(socket, data);
 
       this.handleWelcomeMessage(socket, data);
-      this.handleKnowHostsMessage(socket, data);
     });
   }
 
@@ -105,6 +99,8 @@ module.exports = class Peer {
     const { remoteAddress } = socket;
     const { myPort } = data;
 
+    this.connectToReceivedKnownHosts(data.knownHosts);
+
     const hostObj = this.getHostObj(remoteAddress, myPort);
 
     this.addKnownHost(hostObj);
@@ -112,14 +108,6 @@ module.exports = class Peer {
     if (!data.loopback) {
       this.connectTo(`${remoteAddress}:${myPort}`, true, true);
     }
-  }
-
-  handleKnowHostsMessage(socket, data) {
-    if (data.type !== "knowHosts") {
-      return;
-    }
-
-    this.connectToReceivedKnownHosts(data.knownHosts);
   }
 
   onData(socket, data) {
@@ -130,25 +118,15 @@ module.exports = class Peer {
     throw Error("onConnection handler not implemented");
   }
 
-  sendKnownHosts() {
-    console.log(
-      "\n\n[send my known hosts]",
-      this.knownHosts,
-      this.connections.length
-    );
-
-    this.broadcastMessage({
-      type: "knowHosts",
-      knownHosts: this.knownHosts,
-    });
-  }
-
-  sendWelcomeMessage(socket, myPort, loopback = false) {
-    this.sendMessage(socket, {
+  sendWelcomeMessage(socket, myPort, loopback = false, sendKnownHosts) {
+    const obj = {
       type: "welcome",
       myPort,
       loopback,
-    });
+      knownHosts: this.knownHosts,
+    };
+
+    this.sendMessage(socket, obj);
   }
 
   broadcastMessage(jsonData) {
@@ -157,6 +135,11 @@ module.exports = class Peer {
 
   sendMessage(socket, jsonData) {
     const data = JSON.stringify(jsonData);
-    socket.write(data);
+
+    try {
+      if (!socket._writableState.ended) {
+        socket.write(data);
+      }
+    } catch (e) {}
   }
 };
