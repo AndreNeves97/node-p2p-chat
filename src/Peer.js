@@ -42,67 +42,18 @@ module.exports = class Peer {
     });
   }
 
-  getHostObj(host, port) {
-    return { host, port };
-  }
+  // Função que envia a mensagem de boas vindas, com a porta de escuta.
+  // A porta é enviada para possibilitar que o peer do outro lado possa realizar uma nova
+  // conexão como cliente
+  sendWelcomeMessage(socket, myPort, loopback = false, sendKnownHosts) {
+    const obj = {
+      type: "welcome",
+      myPort,
+      loopback,
+      knownHosts: this.knownHosts,
+    };
 
-  // Função que inclui host na lista de hosts conhecidos
-  addKnownHost(hostObj) {
-    console.log("\n[Added known host ", hostObj);
-    this.knownHosts.push(hostObj);
-  }
-
-  // Função invocada quando o Peer atual recebe lista de hosts conhecidos de outro peer
-  connectToReceivedKnownHosts(knownHosts) {
-    knownHosts.forEach((hostObj) => {
-      this.connectToNewKnownHost(hostObj);
-    });
-  }
-
-  // A função chamada para realizar conexão com algum peer descoberto
-  connectToNewKnownHost(hostObj) {
-    if (this.isKnownHost(hostObj)) {
-      return;
-    }
-
-    this.connectTo(`${hostObj.host}:${hostObj.port}`, false);
-  }
-
-  // Função que verifica se o host já é conhecido
-  isKnownHost(hostObj) {
-    if (hostObj.port === this.port) {
-      return true;
-    }
-
-    const alreadyKnownHostObj = this.knownHosts.find(
-      (knownHost) =>
-        knownHost.host === hostObj.host && knownHost.port === hostObj.port
-    );
-
-    return alreadyKnownHostObj != null;
-  }
-
-  handleClientConnection(socket) {
-    this.listenClientData(socket);
-  }
-
-  // Função que adicona novos sockets à lista de conexões ativas
-  addConnection(socket) {
-    this.connections.push(socket);
-  }
-
-  // Função que implementa a escuta de novas mensagens
-  listenClientData(socket) {
-    this.onConnection(socket);
-
-    socket.on("data", (bufferData) => {
-      const jsonData = bufferData.toString();
-      const data = JSON.parse(jsonData);
-
-      this.onData(socket, data);
-
-      this.handleWelcomeMessage(socket, data);
-    });
+    this.sendMessage(socket, obj);
   }
 
   // Função que recebe e trata a mensagem de boas vindas
@@ -129,6 +80,69 @@ module.exports = class Peer {
     }
   }
 
+  // Função invocada quando o Peer atual recebe lista de hosts conhecidos de outro peer
+  connectToReceivedKnownHosts(knownHosts) {
+    knownHosts.forEach((hostObj) => {
+      this.connectToNewKnownHost(hostObj);
+    });
+  }
+
+  // A função chamada para realizar conexão com algum peer descoberto
+  connectToNewKnownHost(hostObj) {
+    if (this.isKnownHost(hostObj)) {
+      return;
+    }
+
+    this.connectTo(`${hostObj.host}:${hostObj.port}`, false);
+  }
+
+  getHostObj(host, port) {
+    return { host, port };
+  }
+
+  // Função que inclui host na lista de hosts conhecidos
+  addKnownHost(hostObj) {
+    console.log("\n[Added known host ", hostObj);
+    this.knownHosts.push(hostObj);
+  }
+
+  // Função que adicona novos sockets à lista de conexões ativas
+  addConnection(socket) {
+    this.connections.push(socket);
+  }
+
+  // Função que verifica se o host já é conhecido
+  isKnownHost(hostObj) {
+    if (hostObj.port === this.port) {
+      return true;
+    }
+
+    const alreadyKnownHostObj = this.knownHosts.find(
+      (knownHost) =>
+        knownHost.host === hostObj.host && knownHost.port === hostObj.port
+    );
+
+    return alreadyKnownHostObj != null;
+  }
+
+  handleClientConnection(socket) {
+    this.listenClientData(socket);
+  }
+
+  // Função que implementa a escuta de novas mensagens
+  listenClientData(socket) {
+    this.onConnection(socket);
+
+    socket.on("data", (bufferData) => {
+      const jsonData = bufferData.toString();
+      const data = JSON.parse(jsonData);
+
+      this.onData(socket, data);
+
+      this.handleWelcomeMessage(socket, data);
+    });
+  }
+
   // Essa função desse ser sobrescrita pelo serviço que utiliza o P2P. Nesse caso, o arquivo index.js
   // Função que manipula dados recebidos
   onData(socket, data) {
@@ -139,20 +153,6 @@ module.exports = class Peer {
   // Função que manipula o evento de nova conexão
   onConnection(socket) {
     throw Error("onConnection handler not implemented");
-  }
-
-  // Função que envia a mensagem de boas vindas, com a porta de escuta.
-  // A porta é enviada para possibilitar que o peer do outro lado possa realizar uma nova
-  // conexão como cliente
-  sendWelcomeMessage(socket, myPort, loopback = false, sendKnownHosts) {
-    const obj = {
-      type: "welcome",
-      myPort,
-      loopback,
-      knownHosts: this.knownHosts,
-    };
-
-    this.sendMessage(socket, obj);
   }
 
   // Envia uma mensagem a todos os peers conectados
